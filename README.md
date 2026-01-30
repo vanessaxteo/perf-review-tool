@@ -136,7 +136,7 @@ npm start -- generate -s 2025-09-01 -e 2026-01-23 -o my-review.md
 **To get the `NOTION_API_KEY`:** Reach out to Vanessa in Slack to get access to the shared integration key.
 
 Then:
-1. Open your Notion page, click `...` → **Connections** → Add the integration
+1. Open your Notion page, click `...` → **Connections** → Add the integration called "PR Dump"
 2. Get the page ID from the URL: `notion.so/workspace/PAGE_ID`
 3. Add to `.env` as `NOTION_PAGE_ID`
 
