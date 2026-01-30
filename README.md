@@ -133,12 +133,12 @@ npm start -- generate -s 2025-09-01 -e 2026-01-23 -o my-review.md
 3. Add to `.env` as `AI_GATEWAY_API_KEY`
 
 ### Notion Integration
-1. Go to https://www.notion.so/my-integrations
-2. Create a new integration
-3. Copy the "Internal Integration Secret" to `NOTION_API_KEY`
-4. Open your Notion page, click `...` → **Connections** → Add your integration
-5. Get the page ID from the URL: `notion.so/workspace/PAGE_ID`
-6. Add to `.env` as `NOTION_PAGE_ID`
+**To get the `NOTION_API_KEY`:** Reach out to Vanessa in Slack to get access to the shared integration key.
+
+Then:
+1. Open your Notion page, click `...` → **Connections** → Add the integration
+2. Get the page ID from the URL: `notion.so/workspace/PAGE_ID`
+3. Add to `.env` as `NOTION_PAGE_ID`
 
 **Note:** For weekly updates to nest inside a year toggle, make sure your Notion page has a toggle (not a heading) named "2026" (or current year).
 
