@@ -20,6 +20,7 @@ export interface GitHubPR {
   title: string;
   url: string;
   repo: string;
+  createdAt?: string;
   mergedAt?: string;
   body?: string;
   additions: number;
@@ -30,11 +31,13 @@ export interface ReviewData {
   summary: {
     ticketsCompleted: number;
     prsMerged: number;
+    prsOpen?: number;
     period: string;
     totalAdditions: number;
     totalDeletions: number;
   };
   tickets: LinearTicket[];
   prs: GitHubPR[];
+  openPrs?: GitHubPR[];
   aiSummary?: string;
 }

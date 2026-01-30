@@ -1,6 +1,74 @@
 import fs from "fs";
 import type { ReviewData } from "./types.js";
 
+export function generateSyncMarkdown(data: ReviewData): string {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(`# 📋 Team Sync Update - ${data.summary.period}`);
+  lines.push("");
+
+  // Quick stats
+  lines.push(`**${data.summary.ticketsCompleted} tickets** completed · **${data.summary.prsMerged} PRs** merged`);
+  lines.push("");
+
+  // AI Summary at the top
+  if (data.aiSummary) {
+    lines.push("## ✨ Summary");
+    lines.push("");
+    lines.push(data.aiSummary);
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+  }
+
+  // Linear Tickets - compact format
+  if (data.tickets.length > 0) {
+    lines.push("## ✅ Completed");
+    lines.push("");
+    for (const ticket of data.tickets) {
+      lines.push(`- [${ticket.id}](${ticket.url}) ${ticket.title}`);
+    }
+    lines.push("");
+  }
+
+  // PRs - compact format grouped by repo
+  if (data.prs.length > 0) {
+    lines.push("## 🔀 PRs Merged");
+    lines.push("");
+    
+    const prsByRepo = new Map<string, typeof data.prs>();
+    for (const pr of data.prs) {
+      if (!prsByRepo.has(pr.repo)) {
+        prsByRepo.set(pr.repo, []);
+      }
+      prsByRepo.get(pr.repo)!.push(pr);
+    }
+
+    for (const [repo, prs] of prsByRepo) {
+      lines.push(`**${repo}**`);
+      for (const pr of prs) {
+        lines.push(`- [${pr.title}](${pr.url})`);
+      }
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
+}
+
+export function exportToSyncMarkdown(data: ReviewData, filename?: string): string {
+  const md = generateSyncMarkdown(data);
+  
+  if (!filename) {
+    // Return the markdown content directly (for console output)
+    return md;
+  }
+  
+  fs.writeFileSync(filename, md, "utf-8");
+  return filename;
+}
+
 export function generateMarkdown(data: ReviewData): string {
   const lines: string[] = [];
 

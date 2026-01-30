@@ -2,38 +2,20 @@ import { generateText } from "ai";
 import { createGateway } from "@ai-sdk/gateway";
 import type { ReviewData } from "./types.js";
 
-export async function generateAISummary(data: ReviewData): Promise<string> {
-  console.log("🤖 Generating AI summary...");
+export async function generateAISummaryFromMarkdown(markdownContent: string): Promise<string> {
+  console.log("🤖 Generating AI summary from existing file...");
 
   const gatewayKey = process.env.AI_GATEWAY_API_KEY;
-
-  console.log(`   Gateway Key: ${gatewayKey ? gatewayKey.substring(0, 10) + "..." : "(not set)"}`);
 
   if (!gatewayKey) {
     throw new Error("AI_GATEWAY_API_KEY must be set");
   }
 
-  // Create gateway using the same approach as abuse-evaluator
   const gateway = createGateway({ apiKey: gatewayKey });
 
-  // Build context from tickets and PRs
-  const ticketsList = data.tickets
-    .map((t) => `- ${t.id}: ${t.title}${t.labels.length ? ` [${t.labels.join(", ")}]` : ""}`)
-    .join("\n");
+  const prompt = `You are helping an engineer write their performance review. Based on the following performance review markdown document, identify key accomplishments, themes, and value delivered.
 
-  const prsList = data.prs
-    .map((pr) => `- ${pr.repo}: ${pr.title}`)
-    .join("\n");
-
-  const prompt = `You are helping an engineer write their performance review. Based on the following completed work, identify key accomplishments, themes, and value delivered.
-
-## Review Period: ${data.summary.period}
-
-## Completed Linear Tickets (${data.summary.ticketsCompleted} total):
-${ticketsList || "None"}
-
-## Merged GitHub PRs (${data.summary.prsMerged} total):
-${prsList || "None"}
+${markdownContent}
 
 ## Instructions:
 1. Identify 3-5 major themes or project areas from the work
@@ -69,12 +51,10 @@ Write a 2-3 sentence summary of overall impact and contributions.`;
   return text;
 }
 
-export async function generateAISummaryFromMarkdown(markdownContent: string): Promise<string> {
-  console.log("🤖 Generating AI summary from existing file...");
+export async function generateThisWeekSummary(data: ReviewData): Promise<string> {
+  console.log("🤖 Generating this week's summary...");
 
   const gatewayKey = process.env.AI_GATEWAY_API_KEY;
-
-  console.log(`   Gateway Key: ${gatewayKey ? gatewayKey.substring(0, 10) + "..." : "(not set)"}`);
 
   if (!gatewayKey) {
     throw new Error("AI_GATEWAY_API_KEY must be set");
@@ -82,13 +62,72 @@ export async function generateAISummaryFromMarkdown(markdownContent: string): Pr
 
   const gateway = createGateway({ apiKey: gatewayKey });
 
-  const prompt = `You are helping an engineer write their performance review. Based on the following performance review markdown document, identify key accomplishments, themes, and value delivered.
+  const ticketsList = data.tickets
+    .map((t) => `- ${t.id}: ${t.title}`)
+    .join("\n");
 
-${markdownContent}
+  const prsList = data.prs
+    .map((pr) => `- ${pr.repo}: ${pr.title}`)
+    .join("\n");
+
+  const prompt = `You are helping an engineer prepare a brief update for their weekly team sync meeting. Based on the following work completed in the past week, write a concise summary.
+
+## Completed Linear Tickets (${data.summary.ticketsCompleted} total):
+${ticketsList || "None"}
+
+## Merged GitHub PRs (${data.summary.prsMerged} total):
+${prsList || "None"}
 
 ## Instructions:
-1. Identify 3-5 major themes or project areas from the work
-2. For each theme, write 2-3 bullet points highlighting specific accomplishments
+Write a brief, conversational summary (3-5 bullet points) of what was accomplished this week. Focus on:
+- What was shipped or completed
+- Any notable fixes or improvements
+- Keep it concise - this is for a quick team sync, not a performance review
+
+Format as simple bullet points starting with action verbs. No headers needed. Write in first person.`;
+
+  const { text } = await generateText({
+    model: gateway("openai/gpt-4o"),
+    prompt,
+    maxTokens: 500,
+  });
+
+  console.log("   ✅ Summary generated");
+  return text;
+}
+
+export async function generatePerfReviewSummary(data: ReviewData): Promise<string> {
+  console.log("🤖 Generating performance review summary...");
+
+  const gatewayKey = process.env.AI_GATEWAY_API_KEY;
+
+  if (!gatewayKey) {
+    throw new Error("AI_GATEWAY_API_KEY must be set");
+  }
+
+  const gateway = createGateway({ apiKey: gatewayKey });
+
+  const ticketsList = data.tickets
+    .map((t) => `- ${t.id}: ${t.title}${t.labels.length ? ` [${t.labels.join(", ")}]` : ""}`)
+    .join("\n");
+
+  const prsList = data.prs
+    .map((pr) => `- ${pr.repo}: ${pr.title}`)
+    .join("\n");
+
+  const prompt = `You are helping an engineer write their performance review. Based on the following completed work, identify key accomplishments, themes, and value delivered.
+
+## Review Period: ${data.summary.period}
+
+## Completed Linear Tickets (${data.summary.ticketsCompleted} total):
+${ticketsList || "None"}
+
+## Merged GitHub PRs (${data.summary.prsMerged} total):
+${prsList || "None"}
+
+## Instructions:
+1. Identify 5-7 major themes or project areas from the work
+2. For each theme, write 3-5 bullet points highlighting specific accomplishments
 3. Focus on impact and value delivered, not just tasks completed
 4. Use action verbs and quantify where possible
 5. Write in first person as if you are the engineer
@@ -108,7 +147,7 @@ Format your response as:
 (continue for all themes)
 
 ### Summary Statement
-Write a 2-3 sentence summary of overall impact and contributions.`;
+Write a 3-5 sentence summary of overall impact and contributions.`;
 
   const { text } = await generateText({
     model: gateway("openai/gpt-4o"),

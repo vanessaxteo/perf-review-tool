@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^2.0.5",
-    "@ai-sdk/openai": "^2.0.30",
     "@linear/sdk": "^29.0.0",
+    "@notionhq/client": "^5.9.0",
     "@octokit/rest": "^21.0.0",
     "ai": "^5.0.86",
     "commander": "^12.0.0",

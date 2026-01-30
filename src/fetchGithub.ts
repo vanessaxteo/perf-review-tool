@@ -49,6 +49,7 @@ async function fetchPRsWithToken(
           title: item.title,
           url: item.html_url,
           repo: `${owner}/${repo}`,
+          createdAt: item.created_at || undefined,
           mergedAt: item.closed_at || undefined,
           body: item.body || undefined,
           additions: prDetails.additions,
@@ -59,6 +60,7 @@ async function fetchPRsWithToken(
           title: item.title,
           url: item.html_url,
           repo: `${owner}/${repo}`,
+          createdAt: item.created_at || undefined,
           mergedAt: item.closed_at || undefined,
           body: item.body || undefined,
           additions: 0,
@@ -123,6 +125,69 @@ export async function fetchGitHubPRs(config: Config): Promise<GitHubPR[]> {
     return new Date(b.mergedAt).getTime() - new Date(a.mergedAt).getTime();
   });
 
-  console.log(`   ✅ Found ${allPRs.length} PRs`);
+  console.log(`   ✅ Found ${allPRs.length} merged PRs`);
   return allPRs;
+}
+
+export async function fetchOpenGitHubPRs(config: Config): Promise<GitHubPR[]> {
+  console.log("📥 Fetching open GitHub PRs...");
+
+  const octokit = new Octokit({ auth: config.githubToken });
+
+  // Find open PRs authored by the user
+  const query = `is:pr author:${config.githubUsername} is:open`;
+  const prs: GitHubPR[] = [];
+
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data } = await octokit.search.issuesAndPullRequests({
+      q: query,
+      per_page: 100,
+      page,
+      sort: "created",
+      order: "desc",
+    });
+
+    for (const item of data.items) {
+      const repoUrlParts = item.repository_url.split("/");
+      const owner = repoUrlParts[repoUrlParts.length - 2];
+      const repo = repoUrlParts[repoUrlParts.length - 1];
+
+      try {
+        const { data: prDetails } = await octokit.pulls.get({
+          owner,
+          repo,
+          pull_number: item.number,
+        });
+
+        prs.push({
+          title: item.title,
+          url: item.html_url,
+          repo: `${owner}/${repo}`,
+          createdAt: item.created_at || undefined,
+          body: item.body || undefined,
+          additions: prDetails.additions,
+          deletions: prDetails.deletions,
+        });
+      } catch {
+        prs.push({
+          title: item.title,
+          url: item.html_url,
+          repo: `${owner}/${repo}`,
+          createdAt: item.created_at || undefined,
+          body: item.body || undefined,
+          additions: 0,
+          deletions: 0,
+        });
+      }
+    }
+
+    hasMore = data.items.length === 100 && page * 100 < data.total_count;
+    page++;
+  }
+
+  console.log(`   ✅ Found ${prs.length} open PRs`);
+  return prs;
 }
