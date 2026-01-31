@@ -134,8 +134,11 @@ program
       endDate,
     };
 
-    const tickets = options.githubOnly ? [] : await fetchLinearTickets(config);
-    const prs = options.linearOnly ? [] : await fetchGitHubPRs(config);
+    // Fetch Linear and GitHub in parallel for better performance
+    const [tickets, prs] = await Promise.all([
+      options.githubOnly ? Promise.resolve([]) : fetchLinearTickets(config),
+      options.linearOnly ? Promise.resolve([]) : fetchGitHubPRs(config),
+    ]);
 
     const totalAdditions = prs.reduce((sum, pr) => sum + pr.additions, 0);
     const totalDeletions = prs.reduce((sum, pr) => sum + pr.deletions, 0);
@@ -343,14 +346,12 @@ program
       endDate,
     };
 
-    const tickets = await fetchLinearTickets(config);
-    const prs = await fetchGitHubPRs(config);
-
-    // Fetch open PRs if exporting to Notion
-    let openPrs: typeof prs = [];
-    if (options.notion) {
-      openPrs = await fetchOpenGitHubPRs(config);
-    }
+    // Fetch Linear, merged PRs, and open PRs in parallel for better performance
+    const [tickets, prs, openPrs] = await Promise.all([
+      fetchLinearTickets(config),
+      fetchGitHubPRs(config),
+      options.notion ? fetchOpenGitHubPRs(config) : Promise.resolve([]),
+    ]);
 
     const totalAdditions = prs.reduce((sum, pr) => sum + pr.additions, 0);
     const totalDeletions = prs.reduce((sum, pr) => sum + pr.deletions, 0);

@@ -1,6 +1,23 @@
 import { Client } from "@notionhq/client";
 import type { ReviewData } from "./types.js";
 
+const NOTION_BLOCK_LIMIT = 100;
+
+// Helper to append blocks in batches of 100
+async function appendBlocksInBatches(
+  notion: Client,
+  blockId: string,
+  blocks: any[]
+): Promise<void> {
+  for (let i = 0; i < blocks.length; i += NOTION_BLOCK_LIMIT) {
+    const batch = blocks.slice(i, i + NOTION_BLOCK_LIMIT);
+    await notion.blocks.children.append({
+      block_id: blockId,
+      children: batch,
+    });
+  }
+}
+
 async function findYearBlock(
   notion: Client,
   pageId: string,
@@ -159,7 +176,11 @@ export async function exportToNotion(
   }
 
   // Append the toggle to the year toggle (or page if not found)
-  await notion.blocks.children.append({
+  // Notion limits toggle children to 100, so we create with first batch and append rest
+  const firstBatch = toggleChildren.slice(0, NOTION_BLOCK_LIMIT);
+  const remainingBatches = toggleChildren.slice(NOTION_BLOCK_LIMIT);
+
+  const response = await notion.blocks.children.append({
     block_id: parentBlockId,
     children: [
       {
@@ -167,11 +188,17 @@ export async function exportToNotion(
         type: "toggle" as const,
         toggle: {
           rich_text: [{ type: "text" as const, text: { content: data.summary.period } }],
-          children: toggleChildren,
+          children: firstBatch,
         },
       },
     ],
   });
+
+  // If there are more blocks, append them to the toggle we just created
+  if (remainingBatches.length > 0) {
+    const toggleBlock = (response.results as any[])[0];
+    await appendBlocksInBatches(notion, toggleBlock.id, remainingBatches);
+  }
 
   const pageUrl = `https://notion.so/${notionPageId.replace(/-/g, "")}`;
   if (yearBlock?.type === "toggle") {
@@ -366,7 +393,10 @@ export async function exportPerfReviewToNotion(
     }
   }
 
-  // Create as a subpage
+  // Create as a subpage - Notion limits to 100 blocks on creation
+  const firstBatch = blocks.slice(0, NOTION_BLOCK_LIMIT);
+  const remainingBlocks = blocks.slice(NOTION_BLOCK_LIMIT);
+
   const response = await notion.pages.create({
     parent: { page_id: notionPageId },
     properties: {
@@ -374,11 +404,16 @@ export async function exportPerfReviewToNotion(
         title: [{ text: { content: `Performance Review - ${data.summary.period}` } }],
       },
     },
-    children: blocks,
+    children: firstBatch,
   });
 
+  // Append remaining blocks in batches
+  if (remainingBlocks.length > 0) {
+    await appendBlocksInBatches(notion, response.id, remainingBlocks);
+  }
+
   const pageUrl = (response as any).url;
-  console.log(`   ✅ Created Notion page`);
+  console.log(`   ✅ Created Notion page (${blocks.length} blocks)`);
 
   return pageUrl;
 }

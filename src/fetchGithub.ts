@@ -28,46 +28,52 @@ async function fetchPRsWithToken(
       order: "desc",
     });
 
-    for (const item of data.items) {
-      const repoUrlParts = item.repository_url.split("/");
-      const owner = repoUrlParts[repoUrlParts.length - 2];
-      const repo = repoUrlParts[repoUrlParts.length - 1];
+    // Fetch PR details in parallel for better performance
+    const prPromises = data.items
+      .filter((item) => {
+        const repoUrlParts = item.repository_url.split("/");
+        const owner = repoUrlParts[repoUrlParts.length - 2];
+        // Skip SSO orgs when using personal token (would get 403)
+        return !(skipSSOOrgs && SSO_ORGS.includes(owner));
+      })
+      .map(async (item) => {
+        const repoUrlParts = item.repository_url.split("/");
+        const owner = repoUrlParts[repoUrlParts.length - 2];
+        const repo = repoUrlParts[repoUrlParts.length - 1];
 
-      // Skip SSO orgs when using personal token (would get 403)
-      if (skipSSOOrgs && SSO_ORGS.includes(owner)) {
-        continue;
-      }
+        try {
+          const { data: prDetails } = await octokit.pulls.get({
+            owner,
+            repo,
+            pull_number: item.number,
+          });
 
-      try {
-        const { data: prDetails } = await octokit.pulls.get({
-          owner,
-          repo,
-          pull_number: item.number,
-        });
+          return {
+            title: item.title,
+            url: item.html_url,
+            repo: `${owner}/${repo}`,
+            createdAt: item.created_at || undefined,
+            mergedAt: item.closed_at || undefined,
+            body: item.body || undefined,
+            additions: prDetails.additions,
+            deletions: prDetails.deletions,
+          };
+        } catch {
+          return {
+            title: item.title,
+            url: item.html_url,
+            repo: `${owner}/${repo}`,
+            createdAt: item.created_at || undefined,
+            mergedAt: item.closed_at || undefined,
+            body: item.body || undefined,
+            additions: 0,
+            deletions: 0,
+          };
+        }
+      });
 
-        prs.push({
-          title: item.title,
-          url: item.html_url,
-          repo: `${owner}/${repo}`,
-          createdAt: item.created_at || undefined,
-          mergedAt: item.closed_at || undefined,
-          body: item.body || undefined,
-          additions: prDetails.additions,
-          deletions: prDetails.deletions,
-        });
-      } catch {
-        prs.push({
-          title: item.title,
-          url: item.html_url,
-          repo: `${owner}/${repo}`,
-          createdAt: item.created_at || undefined,
-          mergedAt: item.closed_at || undefined,
-          body: item.body || undefined,
-          additions: 0,
-          deletions: 0,
-        });
-      }
-    }
+    const pagePrs = await Promise.all(prPromises);
+    prs.push(...pagePrs);
 
     hasMore = data.items.length === 100 && page * 100 < data.total_count;
     page++;
@@ -150,7 +156,8 @@ export async function fetchOpenGitHubPRs(config: Config): Promise<GitHubPR[]> {
       order: "desc",
     });
 
-    for (const item of data.items) {
+    // Fetch PR details in parallel for better performance
+    const prPromises = data.items.map(async (item) => {
       const repoUrlParts = item.repository_url.split("/");
       const owner = repoUrlParts[repoUrlParts.length - 2];
       const repo = repoUrlParts[repoUrlParts.length - 1];
@@ -162,7 +169,7 @@ export async function fetchOpenGitHubPRs(config: Config): Promise<GitHubPR[]> {
           pull_number: item.number,
         });
 
-        prs.push({
+        return {
           title: item.title,
           url: item.html_url,
           repo: `${owner}/${repo}`,
@@ -170,9 +177,9 @@ export async function fetchOpenGitHubPRs(config: Config): Promise<GitHubPR[]> {
           body: item.body || undefined,
           additions: prDetails.additions,
           deletions: prDetails.deletions,
-        });
+        };
       } catch {
-        prs.push({
+        return {
           title: item.title,
           url: item.html_url,
           repo: `${owner}/${repo}`,
@@ -180,9 +187,12 @@ export async function fetchOpenGitHubPRs(config: Config): Promise<GitHubPR[]> {
           body: item.body || undefined,
           additions: 0,
           deletions: 0,
-        });
+        };
       }
-    }
+    });
+
+    const pagePrs = await Promise.all(prPromises);
+    prs.push(...pagePrs);
 
     hasMore = data.items.length === 100 && page * 100 < data.total_count;
     page++;

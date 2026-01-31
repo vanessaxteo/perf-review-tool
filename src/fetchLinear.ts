@@ -18,13 +18,14 @@ export async function fetchLinearTickets(config: Config): Promise<LinearTicket[]
     first: 250,
   });
 
-  const tickets: LinearTicket[] = [];
+  // Fetch ticket details in parallel for better performance
+  const ticketPromises = issues.nodes.map(async (issue) => {
+    const [state, labels] = await Promise.all([
+      issue.state,
+      issue.labels(),
+    ]);
 
-  for (const issue of issues.nodes) {
-    const state = await issue.state;
-    const labels = await issue.labels();
-
-    tickets.push({
+    return {
       id: issue.identifier,
       title: issue.title,
       description: issue.description || undefined,
@@ -32,8 +33,10 @@ export async function fetchLinearTickets(config: Config): Promise<LinearTicket[]
       state: state?.name || "Unknown",
       labels: labels.nodes.map((l) => l.name),
       url: issue.url,
-    });
-  }
+    };
+  });
+
+  const tickets = await Promise.all(ticketPromises);
 
   console.log(`   ✅ Found ${tickets.length} completed tickets`);
   return tickets;
